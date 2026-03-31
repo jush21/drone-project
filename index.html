@@ -11,6 +11,7 @@
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #020617; color: #f8fafc; }
         .glass-card { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(51, 65, 85, 0.5); }
+        .nav-link-active { color: #38bdf8; border-bottom: 2px solid #38bdf8; }
         .expandable-content { max-height: 0; overflow: hidden; transition: max-height 0.4s ease-out, opacity 0.3s ease; opacity: 0; }
         .expandable-content.open { max-height: 300px; opacity: 1; margin-top: 1rem; }
         .intel-report { background: rgba(245, 158, 11, 0.05); border-left: 3px solid #f59e0b; }
@@ -21,58 +22,70 @@
 </head>
 <body class="scroll-hide">
 
+    <!-- Navigation -->
     <nav class="sticky top-0 z-40 glass-card border-b border-slate-800 px-8 h-16 flex items-center justify-between">
-        <h1 class="text-lg font-black tracking-tighter uppercase italic text-sky-400">Drone Ops Command</h1>
+        <div class="flex items-center space-x-12">
+            <h1 class="text-lg font-black tracking-tighter uppercase italic text-sky-400">Drone Ops Command</h1>
+            <div class="flex space-x-8">
+                <button onclick="switchTab('fleet')" id="nav-fleet" class="nav-link-active h-16 text-xs font-black uppercase tracking-widest transition">Fleet Analytics</button>
+                <button onclick="switchTab('ops')" id="nav-ops" class="text-slate-500 h-16 text-xs font-black uppercase tracking-widest transition">Operators</button>
+            </div>
+        </div>
         <div id="status" class="text-[10px] font-bold text-slate-500 uppercase flex items-center">
             <span class="w-1.5 h-1.5 bg-green-500 rounded-full mr-2 shadow-[0_0_5px_#22c55e]"></span> Operational
         </div>
     </nav>
 
     <main class="max-w-[1600px] mx-auto p-8">
-        <!-- 1. Header Stats -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
-            <div class="glass-card p-6 rounded-2xl border-b-4 border-b-sky-500">
-                <p class="text-[10px] font-bold label-gray uppercase tracking-widest mb-1">Total Unit Airtime</p>
-                <h4 id="stat-time" class="text-4xl data-white">0 <span class="text-sm font-normal label-gray lowercase">min</span></h4>
-            </div>
-            <div class="glass-card p-6 rounded-2xl border-b-4 border-b-amber-500">
-                <p class="text-[10px] font-bold label-gray uppercase tracking-widest mb-1">Detection Events</p>
-                <h4 id="stat-detections" class="text-4xl data-white">0</h4>
-            </div>
-            <div class="glass-card p-6 rounded-2xl border-b-4 border-b-green-500">
-                <p class="text-[10px] font-bold label-gray uppercase tracking-widest mb-1">Active Assets</p>
-                <h4 id="stat-assets" class="text-4xl data-white">0</h4>
-            </div>
-            <div class="glass-card p-6 rounded-2xl border-b-4 border-b-purple-500">
-                <p class="text-[10px] font-bold label-gray uppercase tracking-widest mb-1">Detections Rate</p>
-                <h4 id="stat-rate" class="text-4xl data-white">0%</h4>
-            </div>
-        </div>
-
-        <!-- 2. Charts Section -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
-            <div class="glass-card p-8 rounded-3xl">
-                <h3 class="text-sm font-black text-white uppercase tracking-widest mb-2 border-l-4 border-sky-500 pl-4">Utilization Distribution</h3>
-                <p class="text-[10px] label-gray mb-6 uppercase font-bold">Click a color to filter the timeline</p>
-                <canvas id="fleetChart" height="300"></canvas>
-            </div>
-            <div class="lg:col-span-2 glass-card p-8 rounded-3xl">
-                <div class="flex justify-between items-center mb-8">
-                    <h3 id="timeline-title" class="text-sm font-black text-white uppercase tracking-widest border-l-4 border-purple-500 pl-4">Unit Activity Timeline (7D)</h3>
-                    <button onclick="resetTimeline()" id="reset-filter" class="hidden text-[10px] font-black text-sky-500 hover:text-white uppercase tracking-widest transition">Reset Filter ↺</button>
+        
+        <!-- Section 1: Fleet Analytics -->
+        <div id="section-fleet" class="space-y-12">
+            <!-- Header Stats -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div class="glass-card p-6 rounded-2xl border-b-4 border-b-sky-500">
+                    <p class="text-[10px] font-bold label-gray uppercase tracking-widest mb-1">Total Unit Airtime</p>
+                    <h4 id="stat-time" class="text-4xl data-white">0 <span class="text-sm font-normal label-gray lowercase">min</span></h4>
                 </div>
-                <canvas id="timelineChart" height="150"></canvas>
+                <div class="glass-card p-6 rounded-2xl border-b-4 border-b-amber-500">
+                    <p class="text-[10px] font-bold label-gray uppercase tracking-widest mb-1">Detection Events</p>
+                    <h4 id="stat-detections" class="text-4xl data-white">0</h4>
+                </div>
+                <div class="glass-card p-6 rounded-2xl border-b-4 border-b-green-500">
+                    <p class="text-[10px] font-bold label-gray uppercase tracking-widest mb-1">Active Assets</p>
+                    <h4 id="stat-assets" class="text-4xl data-white">0</h4>
+                </div>
+                <div class="glass-card p-6 rounded-2xl border-b-4 border-b-purple-500">
+                    <p class="text-[10px] font-bold label-gray uppercase tracking-widest mb-1">Detections Rate</p>
+                    <h4 id="stat-rate" class="text-4xl data-white">0%</h4>
+                </div>
+            </div>
+
+            <!-- Charts Section -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="glass-card p-8 rounded-3xl">
+                    <h3 class="text-sm font-black text-white uppercase tracking-widest mb-2 border-l-4 border-sky-500 pl-4">Utilization Distribution</h3>
+                    <p class="text-[10px] label-gray mb-6 uppercase font-bold">Click a color to filter the timeline</p>
+                    <canvas id="fleetChart" height="300"></canvas>
+                </div>
+                <div class="lg:col-span-2 glass-card p-8 rounded-3xl">
+                    <div class="flex justify-between items-center mb-8">
+                        <h3 id="timeline-title" class="text-sm font-black text-white uppercase tracking-widest border-l-4 border-purple-500 pl-4">Unit Activity Timeline (7D)</h3>
+                        <button onclick="resetTimeline()" id="reset-filter" class="hidden text-[10px] font-black text-sky-500 hover:text-white uppercase tracking-widest transition">Reset Filter ↺</button>
+                    </div>
+                    <canvas id="timelineChart" height="150"></canvas>
+                </div>
             </div>
         </div>
 
-        <!-- 3. Operators Section -->
-        <section class="space-y-6">
+        <!-- Section 2: Operators -->
+        <section id="section-ops" class="hidden space-y-6">
             <div class="flex justify-between items-center mb-4">
-                <h2 class="text-2xl font-black uppercase italic tracking-tighter">Operators</h2>
+                <h2 class="text-2xl font-black uppercase italic tracking-tighter">Personnel Roster</h2>
                 <span id="op-count" class="text-[10px] font-bold text-sky-500 uppercase tracking-widest">0 Active Personnel</span>
             </div>
             <div id="operator-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"></div>
         </section>
+
     </main>
 
     <!-- Detail Modal -->
@@ -93,6 +106,7 @@
 
         let unitData = [];
         let timelineChart = null;
+        let fleetChartInstance = null;
 
         const DRONE_COLORS = {
             'MAVIC 3E': '#38bdf8', 'DJI AVATA': '#10b981', 'MATRICE 350': '#a855f7', 'AUTEL EVO': '#f59e0b', 'UNKNOWN': '#64748b'
@@ -159,7 +173,8 @@
         function renderDoughnutChart(fleet) {
             const ctx = document.getElementById('fleetChart').getContext('2d');
             const labels = Object.keys(fleet);
-            new Chart(ctx, {
+            if (fleetChartInstance) fleetChartInstance.destroy();
+            fleetChartInstance = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
                     labels: labels,
@@ -200,6 +215,8 @@
                     datasets: [{ label: 'Minutes', data: dayData, backgroundColor: modelFilter ? DRONE_COLORS[modelFilter] : '#a855f7', borderRadius: 8 }]
                 },
                 options: { 
+                    responsive: true,
+                    maintainAspectRatio: false,
                     scales: { 
                         y: { grid: { color: '#1e293b' }, ticks: { color: '#64748b' }, beginAtZero: true },
                         x: { grid: { display: false }, ticks: { color: '#64748b' } }
@@ -219,6 +236,28 @@
             document.getElementById('timeline-title').innerText = `Unit Activity Timeline (7D)`;
             document.getElementById('reset-filter').classList.add('hidden');
             renderTimelineChart(null);
+        }
+
+        function switchTab(tab) {
+            const fleetSec = document.getElementById('section-fleet');
+            const opsSec = document.getElementById('section-ops');
+            const navFleet = document.getElementById('nav-fleet');
+            const navOps = document.getElementById('nav-ops');
+
+            if (tab === 'fleet') {
+                fleetSec.classList.remove('hidden');
+                opsSec.classList.add('hidden');
+                navFleet.className = "nav-link-active h-16 text-xs font-black uppercase tracking-widest transition";
+                navOps.className = "text-slate-500 h-16 text-xs font-black uppercase tracking-widest transition";
+                // Force chart resize
+                if (timelineChart) timelineChart.resize();
+                if (fleetChartInstance) fleetChartInstance.resize();
+            } else {
+                fleetSec.classList.add('hidden');
+                opsSec.classList.remove('hidden');
+                navOps.className = "nav-link-active h-16 text-xs font-black uppercase tracking-widest transition";
+                navFleet.className = "text-slate-500 h-16 text-xs font-black uppercase tracking-widest transition";
+            }
         }
 
         function showModal(op) {
