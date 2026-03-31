@@ -67,7 +67,7 @@
             </div>
         </div>
 
-        <!-- Section: Personnel (Operators) -->
+        <!-- Section: Personnel -->
         <section id="section-ops" class="space-y-6">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-xl font-bold text-white uppercase italic">Active Roster</h2>
@@ -129,7 +129,17 @@
         let operators = {};
         let fleet = {};
         let timelineChart = null;
-        let activeModelFilter = null;
+
+        // Shared Color Map
+        const DRONE_COLORS = {
+            'MAVIC 3E': '#38bdf8',    // Sky Blue
+            'DJI AVATA': '#10b981',   // Green
+            'MATRICE 350': '#a855f7', // Purple
+            'AUTEL EVO': '#f59e0b',   // Amber
+            'UNKNOWN': '#64748b'      // Slate
+        };
+
+        const getDroneColor = (model) => DRONE_COLORS[model.toUpperCase()] || '#ec4899';
 
         async function init() {
             const { data, error } = await _supabase.from('drons').select('*').order('takeoff_time', { ascending: false });
@@ -149,17 +159,13 @@
                 totalMins += duration;
                 if (log.has_detection) totalDetections++;
 
-                // Ops Aggregation
                 if (!operators[log.operator_name]) {
                     operators[log.operator_name] = { name: log.operator_name, quals: log.qualifications || "Standard", logs: [], total: 0, detections: [] };
                 }
                 operators[log.operator_name].total += duration;
                 operators[log.operator_name].logs.push({ ...log, duration });
-                if (log.has_detection) {
-                    operators[log.operator_name].detections.push(log.detection_notes || "Suspicious activity.");
-                }
+                if (log.has_detection) operators[log.operator_name].detections.push(log.detection_notes || "Suspicious activity.");
 
-                // Fleet Aggregation
                 if (!fleet[model]) fleet[model] = { model, total: 0, count: 0 };
                 fleet[model].total += duration;
                 fleet[model].count++;
@@ -179,46 +185,36 @@
 
         function renderUI(filterText = "") {
             const grid = document.getElementById('operator-grid');
-            const countLabel = document.getElementById('op-count');
-            if(!grid || !countLabel) return;
-            
+            if(!grid) return;
             grid.innerHTML = '';
             const list = Object.values(operators).filter(op => 
                 op.name.toLowerCase().includes(filterText.toLowerCase()) || 
                 op.quals.toLowerCase().includes(filterText.toLowerCase())
             );
-
-            countLabel.innerText = `${list.length} MEMBERS IN VIEW`;
+            document.getElementById('op-count').innerText = `${list.length} MEMBERS IN VIEW`;
 
             list.forEach(op => {
                 const badge = op.total > 150 ? '<span class="bg-amber-500/10 text-amber-500 text-[8px] font-black px-2 py-0.5 rounded-full border border-amber-500/20 ml-2">ELITE PILOT</span>' : '';
-                
-                // Feature: Show detection snippet if any
                 const detectionSnippet = op.detections.length > 0 
-                    ? `<div class="mt-4 p-3 rounded-xl detection-badge text-[9px] font-bold uppercase leading-tight">
-                         <span class="block mb-1 text-[8px] opacity-70">Latest Detection:</span>
-                         ${op.detections[0]}
+                    ? `<div class="mt-4 p-3 rounded-xl detection-badge text-[9px] font-bold uppercase leading-tight italic">
+                         <span class="block mb-1 text-[8px] opacity-70 not-italic tracking-widest">Recent Intel:</span>
+                         "${op.detections[0]}"
                        </div>` 
                     : '';
 
                 const card = document.createElement('div');
                 card.onclick = () => openModal(op);
-                card.className = "glass-card rounded-3xl p-6 border-l-4 border-sky-500 transition transform hover:scale-[1.03] active:scale-95 cursor-pointer group shadow-xl flex flex-col justify-between h-full";
+                card.className = "glass-card rounded-3xl p-6 border-l-4 border-sky-500 transition transform hover:scale-[1.03] active:scale-95 cursor-pointer group shadow-xl flex flex-col justify-between";
                 card.innerHTML = `
                     <div>
-                        <div class="flex justify-between items-start mb-4">
-                            <h3 class="text-lg font-black text-white uppercase group-hover:text-sky-400 transition tracking-tighter italic">${op.name}${badge}</h3>
-                        </div>
+                        <h3 class="text-lg font-black text-white uppercase group-hover:text-sky-400 transition tracking-tighter italic mb-4">${op.name}${badge}</h3>
                         <div class="flex flex-wrap gap-1.5 mb-2">
                             ${op.quals.split(',').map(q => `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-slate-800 text-slate-400 uppercase border border-slate-700">${q.trim()}</span>`).join('')}
                         </div>
                         ${detectionSnippet}
                     </div>
                     <div class="flex items-end justify-between border-t border-slate-800 pt-4 mt-4">
-                        <div>
-                            <p class="text-[9px] font-bold text-slate-600 uppercase tracking-widest">Flight Time</p>
-                            <p class="text-2xl font-black text-white">${op.total} <span class="text-xs text-slate-500 italic lowercase tracking-normal">min</span></p>
-                        </div>
+                        <div><p class="text-[9px] font-bold text-slate-600 uppercase tracking-widest">Flight Time</p><p class="text-2xl font-black text-white">${op.total} <span class="text-xs text-slate-500 italic lowercase tracking-normal">min</span></p></div>
                         <span class="text-[10px] text-slate-500 font-bold uppercase tracking-widest group-hover:text-sky-500 transition">Profile ></span>
                     </div>
                 `;
@@ -229,14 +225,14 @@
         function renderDoughnutChart() {
             const ctx = document.getElementById('fleetChart')?.getContext('2d');
             if(!ctx) return;
-
+            const labels = Object.keys(fleet);
             new Chart(ctx, {
                 type: 'doughnut',
                 data: {
-                    labels: Object.keys(fleet),
+                    labels: labels,
                     datasets: [{
                         data: Object.values(fleet).map(f => f.total),
-                        backgroundColor: ['#38bdf8', '#a855f7', '#10b981', '#f59e0b', '#ec4899'],
+                        backgroundColor: labels.map(l => getDroneColor(l)), // Matching logic
                         borderWidth: 0,
                         hoverOffset: 20
                     }]
@@ -246,8 +242,7 @@
                     onClick: (evt, elements) => {
                         if (elements.length > 0) {
                             const index = elements[0].index;
-                            const model = Object.keys(fleet)[index];
-                            filterTimeline(model);
+                            filterTimeline(labels[index]);
                         }
                     }
                 }
@@ -257,7 +252,6 @@
         function renderTimelineChart(modelFilter = null) {
             const ctx = document.getElementById('timelineChart')?.getContext('2d');
             if(!ctx) return;
-
             if (timelineChart) timelineChart.destroy();
 
             const last7Days = [...Array(7)].map((_, i) => {
@@ -280,7 +274,7 @@
                     datasets: [{ 
                         label: 'Minutes', 
                         data: dayData, 
-                        backgroundColor: modelFilter ? '#38bdf8' : '#a855f7', 
+                        backgroundColor: modelFilter ? getDroneColor(modelFilter) : '#a855f7', // Color matching
                         borderRadius: 8 
                     }]
                 },
@@ -308,27 +302,16 @@
 
         function renderFleetGrid() {
             const grid = document.getElementById('fleet-grid');
-            const countLabel = document.getElementById('fleet-count');
-            if(!grid || !countLabel) return;
-
+            if(!grid) return;
             grid.innerHTML = '';
-            const list = Object.values(fleet);
-            countLabel.innerText = `${list.length} MODELS ACTIVE`;
-
-            list.forEach(f => {
+            Object.values(fleet).forEach(f => {
                 const card = document.createElement('div');
                 card.className = "glass-card p-6 rounded-3xl border border-slate-800 shadow-xl";
                 card.innerHTML = `
-                    <h3 class="text-lg font-black text-white uppercase tracking-tighter italic mb-4">${f.model}</h3>
+                    <h3 class="text-lg font-black text-white uppercase tracking-tighter italic mb-4" style="color: ${getDroneColor(f.model)}">${f.model}</h3>
                     <div class="flex justify-between items-end">
-                        <div>
-                            <p class="text-[9px] font-bold text-slate-600 uppercase tracking-widest">Total Airtime</p>
-                            <p class="text-2xl font-black text-sky-400">${f.total} <span class="text-xs font-normal text-slate-500 lowercase">min</span></p>
-                        </div>
-                        <div class="text-right">
-                            <p class="text-[9px] font-bold text-slate-600 uppercase tracking-widest">Flights</p>
-                            <p class="text-xl font-black text-white">${f.count}</p>
-                        </div>
+                        <div><p class="text-[9px] font-bold text-slate-600 uppercase tracking-widest">Total Airtime</p><p class="text-2xl font-black text-white">${f.total} <span class="text-xs font-normal text-slate-500 lowercase">min</span></p></div>
+                        <div class="text-right"><p class="text-[9px] font-bold text-slate-600 uppercase tracking-widest">Flights</p><p class="text-xl font-black text-white">${f.count}</p></div>
                     </div>
                 `;
                 grid.appendChild(card);
@@ -344,31 +327,22 @@
                 item.className = "glass-card p-6 rounded-2xl intel-alert flex justify-between items-center shadow-lg";
                 item.innerHTML = `
                     <div class="flex-1">
-                        <div class="flex items-center space-x-3 mb-1">
-                            <span class="text-[10px] font-black text-amber-500 uppercase tracking-widest">Active Intel</span>
-                            <span class="text-[10px] text-slate-500 mono">${new Date(l.takeoff_time).toLocaleString()}</span>
-                        </div>
-                        <p class="text-white font-medium text-sm mb-1">${l.detection_notes || 'Suspicious heat signature detected.'}</p>
+                        <div class="flex items-center space-x-3 mb-1"><span class="text-[10px] font-black text-amber-500 uppercase tracking-widest">Active Intel</span><span class="text-[10px] text-slate-500 mono">${new Date(l.takeoff_time).toLocaleString()}</span></div>
+                        <p class="text-white font-medium text-sm mb-1">${l.detection_notes || 'Suspicious activity detected.'}</p>
                         <p class="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Asset: ${l.drone_model} | Operator: ${l.operator_name}</p>
                     </div>
-                    <div class="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center">
-                        <svg class="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a6 6 0 00-9 5.29C1 12.8 5.61 17.5 10 19s9-6.2 9-11.71A6 6 0 0010 2zm0 14.5c-3 0-5-2-5-4.5s2-4.5 5-4.5 5 2 5 4.5-2 4.5-5 4.5z"/></svg>
-                    </div>
+                    <div class="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center"><svg class="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a6 6 0 00-9 5.29C1 12.8 5.61 17.5 10 19s9-6.2 9-11.71A6 6 0 0010 2zm0 14.5c-3 0-5-2-5-4.5s2-4.5 5-4.5 5 2 5 4.5-2 4.5-5 4.5z"/></svg></div>
                 `;
                 feed.appendChild(item);
             });
         }
 
-        function handleSearch() {
-            const text = document.getElementById('globalSearch').value;
-            renderUI(text);
-        }
+        function handleSearch() { renderUI(document.getElementById('globalSearch').value); }
 
         function switchTab(tab) {
             document.getElementById('section-ops').classList.toggle('hidden', tab !== 'ops');
             document.getElementById('section-fleet').classList.toggle('hidden', tab !== 'fleet');
             document.getElementById('section-intel').classList.toggle('hidden', tab !== 'intel');
-            
             document.getElementById('nav-ops').className = tab === 'ops' ? 'nav-link-active py-2 text-xs font-black uppercase tracking-widest text-white' : 'py-2 text-xs font-black uppercase tracking-widest text-slate-500';
             document.getElementById('nav-fleet').className = tab === 'fleet' ? 'nav-link-active py-2 text-xs font-black uppercase tracking-widest text-white' : 'py-2 text-xs font-black uppercase tracking-widest text-slate-500';
             document.getElementById('nav-intel').className = tab === 'intel' ? 'nav-link-active py-2 text-xs font-black uppercase tracking-widest text-white' : 'py-2 text-xs font-black uppercase tracking-widest text-slate-500';
@@ -377,29 +351,15 @@
         function openModal(op) {
             const content = document.getElementById('modal-content');
             content.innerHTML = `
-                <div class="mb-10">
-                    <p class="text-sky-500 font-black text-xs uppercase tracking-[0.4em] mb-2">Personnel Dossier</p>
-                    <h2 class="text-6xl font-black text-white uppercase tracking-tighter mb-4 italic">${op.name}</h2>
-                    <div class="flex space-x-3">
-                        ${op.quals.split(',').map(q => `<span class="px-4 py-1.5 rounded-xl border border-slate-700 bg-slate-900 text-[10px] font-black text-slate-400 uppercase">${q.trim()}</span>`).join('')}
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 gap-4">
-                    <h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest">Recent Mission Sequence</h4>
+                <div class="mb-10"><p class="text-sky-500 font-black text-xs uppercase tracking-[0.4em] mb-2">Personnel Dossier</p><h2 class="text-6xl font-black text-white uppercase tracking-tighter mb-4 italic">${op.name}</h2><div class="flex space-x-3">${op.quals.split(',').map(q => `<span class="px-4 py-1.5 rounded-xl border border-slate-700 bg-slate-900 text-[10px] font-black text-slate-400 uppercase">${q.trim()}</span>`).join('')}</div></div>
+                <div class="grid grid-cols-1 gap-4"><h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest">Recent Mission Sequence</h4>
                     ${op.logs.map(l => `
                         <div class="p-5 bg-slate-900/50 rounded-2xl border border-slate-800 flex justify-between items-center">
-                            <div>
-                                <p class="text-xs font-bold text-white mb-0.5 uppercase tracking-tighter">${l.drone_model}</p>
-                                <p class="text-[10px] text-slate-500 mono">${new Date(l.takeoff_time).toLocaleString()}</p>
-                            </div>
-                            <div class="text-right">
-                                <p class="text-lg font-black text-white leading-none">${l.duration} <span class="text-[10px] font-normal text-slate-500 italic">min</span></p>
-                                ${l.has_detection ? '<span class="text-[8px] bg-amber-500/20 text-amber-500 font-black px-1.5 py-0.5 rounded uppercase mt-1 inline-block">INTEL RECORDED</span>' : ''}
-                            </div>
+                            <div><p class="text-xs font-bold text-white mb-0.5 uppercase tracking-tighter">${l.drone_model}</p><p class="text-[10px] text-slate-500 mono">${new Date(l.takeoff_time).toLocaleString()}</p></div>
+                            <div class="text-right"><p class="text-lg font-black text-white leading-none">${l.duration} <span class="text-[10px] font-normal text-slate-500 italic">min</span></p>${l.has_detection ? '<span class="text-[8px] bg-amber-500/20 text-amber-500 font-black px-1.5 py-0.5 rounded uppercase mt-1 inline-block">INTEL RECORDED</span>' : ''}</div>
                         </div>
                     `).join('')}
-                </div>
-            `;
+                </div>`;
             document.getElementById('profile-modal').classList.remove('hidden');
         }
 
