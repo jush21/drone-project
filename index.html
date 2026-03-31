@@ -7,9 +7,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #020617; color: #f8fafc; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
         .glass-card { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(51, 65, 85, 0.5); }
         .nav-link-active { color: #38bdf8; border-bottom: 2px solid #38bdf8; }
         .expandable-content { max-height: 0; overflow: hidden; transition: max-height 0.4s ease-out, opacity 0.3s ease; opacity: 0; }
@@ -29,6 +30,7 @@
             <div class="flex space-x-8">
                 <button onclick="switchTab('fleet')" id="nav-fleet" class="nav-link-active h-16 text-xs font-black uppercase tracking-widest transition">Fleet Analytics</button>
                 <button onclick="switchTab('ops')" id="nav-ops" class="text-slate-500 h-16 text-xs font-black uppercase tracking-widest transition">Operators</button>
+                <button onclick="switchTab('intel')" id="nav-intel" class="text-slate-500 h-16 text-xs font-black uppercase tracking-widest transition">Intelligence</button>
             </div>
         </div>
         <div id="status" class="text-[10px] font-bold text-slate-500 uppercase flex items-center">
@@ -38,9 +40,8 @@
 
     <main class="max-w-[1600px] mx-auto p-8">
         
-        <!-- Section 1: Fleet Analytics -->
+        <!-- Tab 1: Fleet Analytics -->
         <div id="section-fleet" class="space-y-12">
-            <!-- Header Stats -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div class="glass-card p-6 rounded-2xl border-b-4 border-b-sky-500">
                     <p class="text-[10px] font-bold label-gray uppercase tracking-widest mb-1">Total Unit Airtime</p>
@@ -60,11 +61,9 @@
                 </div>
             </div>
 
-            <!-- Charts Section -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div class="glass-card p-8 rounded-3xl">
                     <h3 class="text-sm font-black text-white uppercase tracking-widest mb-2 border-l-4 border-sky-500 pl-4">Utilization Distribution</h3>
-                    <p class="text-[10px] label-gray mb-6 uppercase font-bold">Click a color to filter the timeline</p>
                     <canvas id="fleetChart" height="300"></canvas>
                 </div>
                 <div class="lg:col-span-2 glass-card p-8 rounded-3xl">
@@ -77,13 +76,22 @@
             </div>
         </div>
 
-        <!-- Section 2: Operators -->
+        <!-- Tab 2: Operators -->
         <section id="section-ops" class="hidden space-y-6">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-2xl font-black uppercase italic tracking-tighter">Personnel Roster</h2>
                 <span id="op-count" class="text-[10px] font-bold text-sky-500 uppercase tracking-widest">0 Active Personnel</span>
             </div>
             <div id="operator-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"></div>
+        </section>
+
+        <!-- Tab 3: Intelligence -->
+        <section id="section-intel" class="hidden space-y-8">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-black uppercase italic tracking-tighter">Intelligence Logs</h2>
+                <span id="intel-count" class="text-[10px] font-bold text-amber-500 uppercase tracking-widest">0 Detection Events</span>
+            </div>
+            <div id="intel-grid" class="space-y-4"></div>
         </section>
 
     </main>
@@ -120,13 +128,13 @@
         }
 
         function processAndRender() {
-            const ops = {}; const fleet = {};
+            const ops = {}; const fleet = {}; const intelRows = [];
             let totalMins = 0; let totalDet = 0;
             
             unitData.forEach(log => {
                 const dur = Math.round((new Date(log.landing_time) - new Date(log.takeoff_time)) / (1000 * 60));
                 const model = (log.drone_model || "UNKNOWN").trim().toUpperCase();
-                totalMins += dur; if (log.has_detection) totalDet++;
+                totalMins += dur; if (log.has_detection) { totalDet++; intelRows.push(log); }
 
                 if (!ops[log.operator_name]) ops[log.operator_name] = { name: log.operator_name, quals: log.qualifications || "Standard", logs: [], total: 0 };
                 ops[log.operator_name].total += dur;
@@ -144,6 +152,7 @@
             renderOperators(ops);
             renderDoughnutChart(fleet);
             renderTimelineChart();
+            renderIntelligence(intelRows);
         }
 
         function renderOperators(ops) {
@@ -157,17 +166,43 @@
                     <h3 class="text-xl data-white mb-6 uppercase tracking-tight italic">${op.name}</h3>
                     <div class="mb-6">
                         <p class="text-[9px] font-bold label-gray uppercase tracking-[0.2em] mb-2">Qualifications:</p>
-                        <div class="flex flex-wrap gap-1.5">
-                            ${op.quals.split(',').map(q => `<span class="px-2 py-0.5 rounded bg-slate-800 text-slate-400 text-[9px] font-bold uppercase border border-slate-700">${q.trim()}</span>`).join('')}
-                        </div>
+                        <div class="flex flex-wrap gap-1.5">${op.quals.split(',').map(q => `<span class="px-2 py-0.5 rounded bg-slate-800 text-slate-400 text-[9px] font-bold uppercase border border-slate-700">${q.trim()}</span>`).join('')}</div>
                     </div>
                     <div class="border-t border-slate-800 pt-4">
                         <p class="text-[10px] label-gray uppercase tracking-widest font-bold italic">Total Airtime: <span class="data-white">${op.total} min</span></p>
-                    </div>
-                `;
+                    </div>`;
                 grid.appendChild(card);
             });
             document.getElementById('op-count').innerText = `${Object.keys(ops).length} Active Personnel`;
+        }
+
+        function renderIntelligence(rows) {
+            const grid = document.getElementById('intel-grid');
+            grid.innerHTML = '';
+            document.getElementById('intel-count').innerText = `${rows.length} Detection Events`;
+
+            rows.forEach(log => {
+                const item = document.createElement('div');
+                item.className = "glass-card p-6 rounded-2xl border-l-4 border-amber-500 shadow-lg";
+                item.innerHTML = `
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div class="space-y-1">
+                            <div class="flex items-center space-x-3 mb-1">
+                                <span class="text-[10px] font-black text-amber-500 uppercase tracking-widest">Active Intel</span>
+                                <span class="text-[10px] label-gray mono">${new Date(log.takeoff_time).toLocaleString()}</span>
+                            </div>
+                            <div class="p-4 rounded-xl intel-report">
+                                <p class="text-white font-medium text-sm leading-relaxed">${log.detection_notes || 'Suspicious signatures recorded during flight.'}</p>
+                            </div>
+                        </div>
+                        <div class="md:text-right flex-shrink-0">
+                            <p class="text-[10px] label-gray uppercase font-bold tracking-widest mb-1">Mission Credentials</p>
+                            <p class="text-sm data-white uppercase">${log.operator_name}</p>
+                            <p class="text-xs text-sky-400 font-bold uppercase tracking-tighter">${log.drone_model}</p>
+                        </div>
+                    </div>`;
+                grid.appendChild(item);
+            });
         }
 
         function renderDoughnutChart(fleet) {
@@ -194,103 +229,39 @@
         function renderTimelineChart(modelFilter = null) {
             const ctx = document.getElementById('timelineChart').getContext('2d');
             if (timelineChart) timelineChart.destroy();
-
-            const last7Days = [...Array(7)].map((_, i) => {
-                const d = new Date(); d.setDate(d.getDate() - i);
-                return d.toISOString().split('T')[0];
-            }).reverse();
-
-            const dayData = last7Days.map(day => {
-                return unitData.filter(l => {
-                    const matchesDay = l.takeoff_time.startsWith(day);
-                    const matchesModel = modelFilter ? (l.drone_model || "").trim().toUpperCase() === modelFilter : true;
-                    return matchesDay && matchesModel;
-                }).reduce((sum, l) => sum + Math.round((new Date(l.landing_time) - new Date(l.takeoff_time)) / (1000 * 60)), 0);
-            });
-
+            const last7Days = [...Array(7)].map((_, i) => { const d = new Date(); d.setDate(d.getDate() - i); return d.toISOString().split('T')[0]; }).reverse();
+            const dayData = last7Days.map(day => unitData.filter(l => l.takeoff_time.startsWith(day) && (modelFilter ? (l.drone_model || "").trim().toUpperCase() === modelFilter : true)).reduce((sum, l) => sum + Math.round((new Date(l.landing_time) - new Date(l.takeoff_time)) / (1000 * 60)), 0));
             timelineChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels: last7Days.map(d => d.split('-').slice(1).join('/')),
                     datasets: [{ label: 'Minutes', data: dayData, backgroundColor: modelFilter ? DRONE_COLORS[modelFilter] : '#a855f7', borderRadius: 8 }]
                 },
-                options: { 
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: { 
-                        y: { grid: { color: '#1e293b' }, ticks: { color: '#64748b' }, beginAtZero: true },
-                        x: { grid: { display: false }, ticks: { color: '#64748b' } }
-                    },
-                    plugins: { legend: { display: false } }
-                }
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { grid: { color: '#1e293b' }, ticks: { color: '#64748b' }, beginAtZero: true }, x: { grid: { display: false }, ticks: { color: '#64748b' } } }, plugins: { legend: { display: false } } }
             });
         }
 
-        function filterTimeline(model) {
-            document.getElementById('timeline-title').innerText = `Timeline: ${model}`;
-            document.getElementById('reset-filter').classList.remove('hidden');
-            renderTimelineChart(model);
-        }
-
-        function resetTimeline() {
-            document.getElementById('timeline-title').innerText = `Unit Activity Timeline (7D)`;
-            document.getElementById('reset-filter').classList.add('hidden');
-            renderTimelineChart(null);
-        }
+        function filterTimeline(model) { document.getElementById('timeline-title').innerText = `Timeline: ${model}`; document.getElementById('reset-filter').classList.remove('hidden'); renderTimelineChart(model); }
+        function resetTimeline() { document.getElementById('timeline-title').innerText = `Unit Activity Timeline (7D)`; document.getElementById('reset-filter').classList.add('hidden'); renderTimelineChart(null); }
 
         function switchTab(tab) {
-            const fleetSec = document.getElementById('section-fleet');
-            const opsSec = document.getElementById('section-ops');
-            const navFleet = document.getElementById('nav-fleet');
-            const navOps = document.getElementById('nav-ops');
-
-            if (tab === 'fleet') {
-                fleetSec.classList.remove('hidden');
-                opsSec.classList.add('hidden');
-                navFleet.className = "nav-link-active h-16 text-xs font-black uppercase tracking-widest transition";
-                navOps.className = "text-slate-500 h-16 text-xs font-black uppercase tracking-widest transition";
-                // Force chart resize
-                if (timelineChart) timelineChart.resize();
-                if (fleetChartInstance) fleetChartInstance.resize();
-            } else {
-                fleetSec.classList.add('hidden');
-                opsSec.classList.remove('hidden');
-                navOps.className = "nav-link-active h-16 text-xs font-black uppercase tracking-widest transition";
-                navFleet.className = "text-slate-500 h-16 text-xs font-black uppercase tracking-widest transition";
-            }
+            const sections = { fleet: document.getElementById('section-fleet'), ops: document.getElementById('section-ops'), intel: document.getElementById('section-intel') };
+            const navs = { fleet: document.getElementById('nav-fleet'), ops: document.getElementById('nav-ops'), intel: document.getElementById('nav-intel') };
+            Object.keys(sections).forEach(k => {
+                sections[k].classList.add('hidden');
+                navs[k].className = "text-slate-500 h-16 text-xs font-black uppercase tracking-widest transition";
+            });
+            sections[tab].classList.remove('hidden');
+            navs[tab].className = "nav-link-active h-16 text-xs font-black uppercase tracking-widest transition";
+            if (tab === 'fleet') { if (timelineChart) timelineChart.resize(); if (fleetChartInstance) fleetChartInstance.resize(); }
         }
 
         function showModal(op) {
             const content = document.getElementById('modal-content');
             content.innerHTML = `
-                <div class="mb-10">
-                    <h2 class="text-6xl font-black text-white uppercase italic tracking-tighter mb-2">${op.name}</h2>
-                    <div class="flex items-center space-x-2 mb-8">
-                        <p class="text-xs font-bold label-gray uppercase tracking-widest font-black">TOTAL AIRTIME:</p>
-                        <p class="text-2xl data-white uppercase">${op.total} min</p>
-                    </div>
-                    <p class="text-[9px] font-bold label-gray uppercase tracking-[0.2em] mb-3">QUALIFICATIONS:</p>
-                    <div class="flex flex-wrap gap-2">
-                        ${op.quals.split(',').map(q => `<span class="px-4 py-1.5 rounded-xl border border-sky-500/20 bg-sky-500/10 text-sky-400 text-[10px] font-black uppercase">${q.trim()}</span>`).join('')}
-                    </div>
-                </div>
-                <div class="space-y-6">
-                    <h4 class="text-xs font-bold label-gray uppercase tracking-widest border-b border-slate-800 pb-2">Mission Log</h4>
-                    <div class="space-y-3">
-                        ${op.logs.map((l, i) => `
-                            <div class="p-5 rounded-2xl border border-slate-800 bg-slate-900/40">
-                                <div class="flex justify-between items-center">
-                                    <div><p class="text-sm data-white uppercase">${l.drone_model}</p><p class="text-[10px] label-gray font-mono">${new Date(l.takeoff_time).toLocaleString()}</p></div>
-                                    <div class="flex items-center space-x-6">
-                                        <p class="text-xs data-white font-bold">${l.duration} MIN</p>
-                                        ${l.has_detection ? `<button onclick="event.stopPropagation(); toggleIntel(${i})" class="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 hover:bg-amber-500 hover:text-slate-900 transition"><span class="font-bold">!</span></button>` : '<div class="w-8"></div>'}
-                                    </div>
-                                </div>
-                                <div id="intel-${i}" class="expandable-content"><div class="p-4 rounded-xl intel-report"><p class="text-[9px] font-black text-amber-500 uppercase mb-1 tracking-widest">Intelligence Notes</p><p class="text-sm text-slate-300 leading-relaxed">${l.detection_notes}</p><button onclick="toggleIntel(${i})" class="text-[9px] font-bold label-gray uppercase hover:text-white mt-3 block underline tracking-widest">Show Less</button></div></div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>`;
+                <div class="mb-10"><h2 class="text-6xl font-black text-white uppercase italic tracking-tighter mb-2">${op.name}</h2><div class="flex items-center space-x-2 mb-8"><p class="text-xs font-bold label-gray uppercase tracking-widest font-black">TOTAL AIRTIME:</p><p class="text-2xl data-white uppercase">${op.total} min</p></div><p class="text-[9px] font-bold label-gray uppercase tracking-[0.2em] mb-3">QUALIFICATIONS:</p><div class="flex flex-wrap gap-2">${op.quals.split(',').map(q => `<span class="px-4 py-1.5 rounded-xl border border-sky-500/20 bg-sky-500/10 text-sky-400 text-[10px] font-black uppercase">${q.trim()}</span>`).join('')}</div></div>
+                <div class="space-y-6"><h4 class="text-xs font-bold label-gray uppercase tracking-widest border-b border-slate-800 pb-2">Mission Log</h4><div class="space-y-3">${op.logs.map((l, i) => `
+                    <div class="p-5 rounded-2xl border border-slate-800 bg-slate-900/40"><div class="flex justify-between items-center"><div><p class="text-sm data-white uppercase">${l.drone_model}</p><p class="text-[10px] label-gray font-mono">${new Date(l.takeoff_time).toLocaleString()}</p></div><div class="flex items-center space-x-6"><p class="text-xs data-white font-bold">${l.duration} MIN</p>${l.has_detection ? `<button onclick="event.stopPropagation(); toggleIntel(${i})" class="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 hover:bg-amber-500 hover:text-slate-900 transition"><span class="font-bold">!</span></button>` : '<div class="w-8"></div>'}</div></div><div id="intel-${i}" class="expandable-content"><div class="p-4 rounded-xl intel-report"><p class="text-[9px] font-black text-amber-500 uppercase mb-1 tracking-widest">Intelligence Notes</p><p class="text-sm text-slate-300 leading-relaxed">${l.detection_notes}</p><button onclick="toggleIntel(${i})" class="text-[9px] font-bold label-gray uppercase hover:text-white mt-3 block underline tracking-widest">Show Less</button></div></div></div>`).join('')}</div></div>`;
             document.getElementById('profile-modal').classList.remove('hidden');
             document.body.style.overflow = 'hidden';
         }
