@@ -3,61 +3,112 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Unit Logbook - Drone Operations</title>
+    <title>Advanced Drone Ops Command</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #020617; }
-        .mono { font-family: 'JetBrains Mono', monospace; }
+        body { font-family: 'Inter', sans-serif; background-color: #020617; color: #cbd5e1; }
+        .glass-card { background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(51, 65, 85, 0.4); }
         .nav-link-active { color: #38bdf8; border-bottom: 2px solid #38bdf8; }
-        .glass-card { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(51, 65, 85, 0.4); }
-        .modal-backdrop { background: rgba(2, 6, 23, 0.9); backdrop-filter: blur(8px); }
-        .intel-box { background: rgba(245, 158, 11, 0.05); border-left: 4px solid #f59e0b; }
+        .intel-alert { border-left: 3px solid #f59e0b; background: rgba(245, 158, 11, 0.05); }
+        .scroll-hide::-webkit-scrollbar { display: none; }
     </style>
 </head>
-<body class="text-slate-300 overflow-x-hidden">
+<body class="overflow-x-hidden scroll-hide">
 
-    <!-- Navigation -->
-    <nav class="sticky top-0 z-40 glass-card border-b border-slate-800 px-8 h-16 flex items-center justify-between">
+    <!-- Advanced Navigation -->
+    <nav class="sticky top-0 z-40 glass-card border-b border-slate-800 px-8 h-20 flex items-center justify-between">
         <div class="flex items-center space-x-8">
-            <h1 class="text-xl font-black text-white tracking-tighter italic mr-4 uppercase">Unit Logbook</h1>
-            <button onclick="switchTab('operators')" id="nav-operators" class="nav-link-active h-16 px-2 text-sm font-bold uppercase tracking-widest transition">Personnel</button>
-            <button onclick="switchTab('fleet')" id="nav-fleet" class="h-16 px-2 text-sm font-bold uppercase tracking-widest text-slate-500 transition">Fleet Metrics</button>
+            <div class="flex flex-col">
+                <h1 class="text-xl font-black text-white tracking-tighter italic uppercase leading-none">Command Center</h1>
+                <span class="text-[9px] text-sky-500 font-bold tracking-[0.3em]">UNIT INTELLIGENCE</span>
+            </div>
+            <div class="h-10 w-[1px] bg-slate-800"></div>
+            <div class="flex space-x-6">
+                <button onclick="switchTab('ops')" id="nav-ops" class="nav-link-active py-2 text-xs font-black uppercase tracking-widest transition">Personnel</button>
+                <button onclick="switchTab('fleet')" id="nav-fleet" class="py-2 text-xs font-black uppercase tracking-widest text-slate-500 transition">Fleet Analysis</button>
+                <button onclick="switchTab('intel')" id="nav-intel" class="py-2 text-xs font-black uppercase tracking-widest text-slate-500 transition">Intel Feed</button>
+            </div>
         </div>
-        <div id="status" class="text-[10px] font-bold text-slate-500 uppercase flex items-center">
-            <span class="w-1.5 h-1.5 bg-slate-600 rounded-full mr-2"></span> Handshake Pending
+
+        <div class="flex items-center space-x-6">
+            <div class="relative">
+                <input type="text" id="globalSearch" placeholder="SEARCH UNIT..." oninput="handleSearch()"
+                       class="bg-slate-900/80 border border-slate-700 rounded-full px-5 py-2 text-xs font-bold text-white focus:outline-none focus:border-sky-500 w-64 transition-all">
+            </div>
+            <div id="status" class="text-[10px] font-black text-slate-500 uppercase flex items-center">
+                <span class="w-2 h-2 bg-slate-600 rounded-full mr-2"></span> Handshake
+            </div>
         </div>
     </nav>
 
-    <main class="max-w-7xl mx-auto p-8">
-        <!-- Operators Section -->
-        <section id="section-operators">
-            <div class="flex justify-between items-end mb-8">
-                <div>
-                    <h2 class="text-3xl font-black text-white uppercase italic">Active Unit Roster</h2>
-                    <p class="text-slate-500 text-xs mt-1 italic">Aggregating 30 mission logs into operator profiles</p>
-                </div>
-                <p id="op-count" class="text-sky-500 font-bold text-sm uppercase">Calculating...</p>
+    <main class="max-w-[1600px] mx-auto p-8">
+        
+        <!-- Dashboard Summary Row -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
+            <div class="glass-card p-6 rounded-3xl border-b-4 border-b-sky-500">
+                <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Total Unit Airtime</p>
+                <h4 id="stat-total-time" class="text-4xl font-black text-white">0 <span class="text-sm font-normal text-slate-600 lowercase">min</span></h4>
             </div>
-            <div id="operator-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+            <div class="glass-card p-6 rounded-3xl border-b-4 border-b-amber-500">
+                <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Detection Events</p>
+                <h4 id="stat-detections" class="text-4xl font-black text-white">0</h4>
+            </div>
+            <div class="glass-card p-6 rounded-3xl border-b-4 border-b-green-500">
+                <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Active Assets</p>
+                <h4 id="stat-assets" class="text-4xl font-black text-white">0</h4>
+            </div>
+            <div class="glass-card p-6 rounded-3xl border-b-4 border-b-purple-500">
+                <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Detections Rate</p>
+                <h4 id="stat-rate" class="text-4xl font-black text-white">0%</h4>
+            </div>
+        </div>
+
+        <!-- Section: Personnel (Operators) -->
+        <section id="section-ops" class="space-y-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-white uppercase italic">Active Roster</h2>
+                <span id="op-count" class="text-[10px] font-bold text-sky-500 uppercase">0 MEMBERS</span>
+            </div>
+            <div id="operator-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"></div>
         </section>
 
-        <!-- Fleet Section -->
-        <section id="section-fleet" class="hidden">
-            <div class="flex justify-between items-end mb-8">
-                <h2 class="text-3xl font-black text-white uppercase italic">Fleet Asset Analytics</h2>
-                <p id="fleet-count" class="text-sky-500 font-bold text-sm uppercase">Analyzing Fleet...</p>
+        <!-- Section: Fleet Analysis -->
+        <section id="section-fleet" class="hidden grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="lg:col-span-1 glass-card p-8 rounded-3xl">
+                <h3 class="text-sm font-black text-white uppercase tracking-widest mb-8 border-l-4 border-sky-500 pl-4">Utilization Distribution</h3>
+                <canvas id="fleetChart" height="300"></canvas>
             </div>
-            <div id="fleet-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"></div>
+            <div class="lg:col-span-2 glass-card p-8 rounded-3xl">
+                <h3 class="text-sm font-black text-white uppercase tracking-widest mb-8 border-l-4 border-purple-500 pl-4">Unit Activity Timeline (7D)</h3>
+                <canvas id="timelineChart" height="150"></canvas>
+            </div>
+            <div class="lg:col-span-3">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold text-white uppercase italic">Fleet Assets</h2>
+                    <span id="fleet-count" class="text-[10px] font-bold text-sky-500 uppercase">0 MODELS</span>
+                </div>
+                <div id="fleet-grid" class="grid grid-cols-1 md:grid-cols-4 gap-6"></div>
+            </div>
         </section>
+
+        <!-- Section: Intel Feed -->
+        <section id="section-intel" class="hidden">
+            <div class="max-w-4xl mx-auto space-y-4">
+                <h3 class="text-xl font-black text-white uppercase italic mb-8">Intelligence Alert Feed</h3>
+                <div id="intel-feed" class="space-y-4"></div>
+            </div>
+        </section>
+
     </main>
 
     <!-- Detailed Profile Modal -->
     <div id="profile-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
-        <div class="absolute inset-0 modal-backdrop" onclick="closeModal()"></div>
-        <div class="relative glass-card rounded-3xl w-full max-w-5xl max-h-[85vh] overflow-y-auto p-10 shadow-2xl border-t-sky-500 border-t-2">
-            <button onclick="closeModal()" class="absolute top-8 right-8 text-slate-500 hover:text-white transition">
+        <div class="absolute inset-0 bg-slate-950/90 backdrop-blur-md" onclick="closeModal()"></div>
+        <div class="relative glass-card rounded-[2.5rem] w-full max-w-5xl max-h-[85vh] overflow-y-auto p-12 shadow-2xl border-t-sky-500 border-t-2">
+            <button onclick="closeModal()" class="absolute top-10 right-10 text-slate-500 hover:text-white transition">
                 <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
             </button>
             <div id="modal-content"></div>
@@ -69,191 +120,234 @@
         const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNuamtkeGZ1cnBhZ3NzaW1tbXRxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MzU4MzksImV4cCI6MjA5MDUxMTgzOX0.jpqX54brUMKOCC-H85ZRsZ5NkFQ0m-75FkosfY_VGX0";
         const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        const droneImages = {
-            'MAVIC 3E': 'https://www.dji.com/kr/pps/publications/mavic-3-enterprise/desktop/img/s1-1.jpg',
-            'DJI AVATA': 'https://terra-1-g.djicdn.com/851d20f7b9f64838a34cd02351370894/Avata%202/avata-2-pc.png',
-            'MATRICE 350': 'https://enterprise-insights.dji.com/hubfs/Matrice%20350%20RTK%20Header.jpg',
-            'AUTEL EVO': 'https://www.autelrobotics.com/u_file/2205/photo/9721735165.png'
-        };
-
-        const getBadgeStyle = (model) => {
-            const m = model.toUpperCase();
-            if (m.includes('MAVIC')) return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
-            if (m.includes('AVATA')) return 'bg-green-500/10 text-green-400 border-green-500/20';
-            if (m.includes('MATRICE')) return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
-            return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
-        };
+        let unitData = [];
+        let operators = {};
+        let fleet = {};
 
         async function init() {
             const { data, error } = await _supabase.from('drons').select('*').order('takeoff_time', { ascending: false });
             if (error) return;
-            document.getElementById('status').innerHTML = `<span class="w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span> Uplink Active`;
-            processAggregation(data);
+            unitData = data;
+            document.getElementById('status').innerHTML = `<span class="w-2 h-2 bg-green-500 rounded-full mr-2 shadow-[0_0_8px_#22c55e]"></span> Live Uplink`;
+            processData();
         }
 
-        function processAggregation(data) {
-            const ops = {};
-            const fleet = {};
+        function processData() {
+            operators = {}; fleet = {};
+            let totalMins = 0; let totalDetections = 0;
 
-            data.forEach(log => {
-                const takeoff = new Date(log.takeoff_time);
-                const landing = new Date(log.landing_time);
-                const duration = Math.round((landing - takeoff) / (1000 * 60));
-                const modelKey = (log.drone_model || "UNKNOWN").trim().toUpperCase();
+            unitData.forEach(log => {
+                const duration = Math.round((new Date(log.landing_time) - new Date(log.takeoff_time)) / (1000 * 60));
+                const model = (log.drone_model || "UNKNOWN").trim().toUpperCase();
+                totalMins += duration;
+                if (log.has_detection) totalDetections++;
 
-                // Group by Operator
-                if (!ops[log.operator_name]) {
-                    ops[log.operator_name] = { 
-                        name: log.operator_name, 
-                        quals: log.qualifications || "Standard", 
-                        logs: [], 
-                        totalMinutes: 0 
-                    };
+                // Ops Aggregation
+                if (!operators[log.operator_name]) {
+                    operators[log.operator_name] = { name: log.operator_name, quals: log.qualifications || "Standard", logs: [], total: 0 };
                 }
-                ops[log.operator_name].totalMinutes += duration;
-                ops[log.operator_name].logs.push({ ...log, duration });
+                operators[log.operator_name].total += duration;
+                operators[log.operator_name].logs.push({ ...log, duration });
 
-                // Group by Fleet
-                if (!fleet[modelKey]) {
-                    fleet[modelKey] = { model: modelKey, totalMinutes: 0, missions: 0 };
-                }
-                fleet[modelKey].totalMinutes += duration;
-                fleet[modelKey].missions++;
+                // Fleet Aggregation
+                if (!fleet[model]) fleet[model] = { model, total: 0, count: 0 };
+                fleet[model].total += duration;
+                fleet[model].count++;
             });
 
-            renderDashboard(ops, fleet);
+            document.getElementById('stat-total-time').innerHTML = `${totalMins} <span class="text-sm font-normal text-slate-600 lowercase">min</span>`;
+            document.getElementById('stat-detections').innerText = totalDetections;
+            document.getElementById('stat-assets').innerText = Object.keys(fleet).length;
+            document.getElementById('stat-rate').innerText = Math.round((totalDetections / unitData.length) * 100) + '%';
+
+            renderUI();
+            renderCharts();
+            renderIntelFeed();
+            renderFleetGrid();
         }
 
-        function renderDashboard(ops, fleet) {
-            const opGrid = document.getElementById('operator-grid');
-            const flGrid = document.getElementById('fleet-grid');
-            opGrid.innerHTML = ''; flGrid.innerHTML = '';
+        function renderUI(filterText = "") {
+            const grid = document.getElementById('operator-grid');
+            const countLabel = document.getElementById('op-count');
+            if(!grid || !countLabel) return;
+            
+            grid.innerHTML = '';
+            const list = Object.values(operators).filter(op => 
+                op.name.toLowerCase().includes(filterText.toLowerCase()) || 
+                op.quals.toLowerCase().includes(filterText.toLowerCase())
+            );
 
-            // Render Operators
-            const opList = Object.values(ops);
-            document.getElementById('op-count').innerText = `${opList.length} UNIT MEMBERS DETECTED`;
-            opList.forEach(op => {
+            countLabel.innerText = `${list.length} MEMBERS IN VIEW`;
+
+            list.forEach(op => {
+                const badge = op.total > 150 ? '<span class="bg-amber-500/10 text-amber-500 text-[8px] font-black px-2 py-0.5 rounded-full border border-amber-500/20 ml-2">ELITE PILOT</span>' : '';
                 const card = document.createElement('div');
                 card.onclick = () => openModal(op);
-                card.className = "glass-card rounded-3xl p-7 border-l-4 border-sky-500 shadow-xl transition transform hover:scale-[1.03] active:scale-95 cursor-pointer group";
+                card.className = "glass-card rounded-3xl p-6 border-l-4 border-sky-500 transition transform hover:scale-[1.03] active:scale-95 cursor-pointer group shadow-xl";
                 card.innerHTML = `
-                    <div class="flex justify-between items-start mb-6">
-                        <h3 class="text-2xl font-black text-white uppercase group-hover:text-sky-400 transition tracking-tighter italic">${op.name}</h3>
-                        <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">${op.logs.length} MISSIONS</span>
+                    <div class="flex justify-between items-start mb-4">
+                        <h3 class="text-lg font-black text-white uppercase group-hover:text-sky-400 transition tracking-tighter italic">${op.name}${badge}</h3>
                     </div>
-                    <div class="flex flex-wrap gap-2 mb-8">
-                        ${op.quals.split(',').map(q => `<span class="px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase ${getBadgeStyle(q.trim())}">${q.trim()}</span>`).join('')}
+                    <div class="flex flex-wrap gap-1.5 mb-6">
+                        ${op.quals.split(',').map(q => `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-slate-800 text-slate-400 uppercase border border-slate-700">${q.trim()}</span>`).join('')}
                     </div>
-                    <div class="flex items-center justify-between border-t border-slate-800 pt-5">
+                    <div class="flex items-end justify-between border-t border-slate-800 pt-4">
                         <div>
-                            <p class="text-[10px] font-bold text-slate-600 uppercase tracking-widest">Cumulative Airtime</p>
-                            <p class="text-3xl font-black text-white">${op.totalMinutes} <span class="text-xs font-normal text-slate-500 italic lowercase tracking-normal">min</span></p>
+                            <p class="text-[9px] font-bold text-slate-600 uppercase tracking-widest">Flight Time</p>
+                            <p class="text-2xl font-black text-white">${op.total} <span class="text-xs text-slate-500 italic lowercase tracking-normal">min</span></p>
                         </div>
-                        <div class="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center group-hover:bg-sky-500 transition duration-300">
-                            <svg class="w-6 h-6 text-sky-500 group-hover:text-slate-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
-                        </div>
+                        <span class="text-[10px] text-slate-500 font-bold uppercase tracking-widest group-hover:text-sky-500 transition">Profile ></span>
                     </div>
                 `;
-                opGrid.appendChild(card);
+                grid.appendChild(card);
             });
+        }
 
-            // Render Fleet
-            const flList = Object.values(fleet);
-            document.getElementById('fleet-count').innerText = `${flList.length} ACTIVE ASSET MODELS`;
-            flList.forEach(item => {
-                const img = droneImages[item.model] || 'https://via.placeholder.com/400x200?text=' + item.model;
+        function renderFleetGrid() {
+            const grid = document.getElementById('fleet-grid');
+            const countLabel = document.getElementById('fleet-count');
+            if(!grid || !countLabel) return;
+
+            grid.innerHTML = '';
+            const list = Object.values(fleet);
+            countLabel.innerText = `${list.length} MODELS ACTIVE`;
+
+            list.forEach(f => {
                 const card = document.createElement('div');
-                card.className = "glass-card rounded-3xl overflow-hidden shadow-2xl border border-slate-800 transition hover:border-sky-500/40";
+                card.className = "glass-card p-6 rounded-3xl border border-slate-800 shadow-xl";
                 card.innerHTML = `
-                    <div class="h-44 bg-slate-800 overflow-hidden"><img src="${img}" class="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition duration-700" onerror="this.src='https://via.placeholder.com/400x225/0f172a/38bdf8?text=${item.model}';"></div>
-                    <div class="p-7">
-                        <div class="flex justify-between items-center mb-6">
-                            <h3 class="text-2xl font-black text-white uppercase tracking-tighter italic">${item.model}</h3>
-                            <span class="text-[10px] bg-slate-800 px-3 py-1 rounded-full text-slate-400 font-bold">${item.missions} FLIGHTS</span>
+                    <h3 class="text-lg font-black text-white uppercase tracking-tighter italic mb-4">${f.model}</h3>
+                    <div class="flex justify-between items-end">
+                        <div>
+                            <p class="text-[9px] font-bold text-slate-600 uppercase tracking-widest">Total Airtime</p>
+                            <p class="text-2xl font-black text-sky-400">${f.total} <span class="text-xs font-normal text-slate-500 lowercase">min</span></p>
                         </div>
-                        <div class="grid grid-cols-1 gap-4 border-t border-slate-800 pt-5">
-                            <div>
-                                <p class="text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-1">Total Unit Utilization</p>
-                                <p class="text-4xl font-black text-sky-400 tracking-tighter">${item.totalMinutes} <span class="text-sm font-normal text-slate-500 italic lowercase">min</span></p>
-                            </div>
+                        <div class="text-right">
+                            <p class="text-[9px] font-bold text-slate-600 uppercase tracking-widest">Flights</p>
+                            <p class="text-xl font-black text-white">${f.count}</p>
                         </div>
                     </div>
                 `;
-                flGrid.appendChild(card);
+                grid.appendChild(card);
             });
         }
 
-        function openModal(op) {
-            const modal = document.getElementById('profile-modal');
-            const content = document.getElementById('modal-content');
-            
-            content.innerHTML = `
-                <div class="mb-12">
-                    <div class="flex items-center space-x-4 mb-3">
-                        <div class="h-1 w-12 bg-sky-500"></div>
-                        <p class="text-sky-500 font-black text-xs uppercase tracking-[0.4em]">Unit Member Profile</p>
-                    </div>
-                    <h2 class="text-6xl font-black text-white uppercase tracking-tighter mb-6 italic">${op.name}</h2>
-                    <div class="flex flex-wrap gap-3">
-                        ${op.quals.split(',').map(q => `<span class="px-5 py-2 rounded-xl border text-xs font-black uppercase ${getBadgeStyle(q.trim())}">${q.trim()}</span>`).join('')}
-                    </div>
-                </div>
+        function renderCharts() {
+            const fleetCtx = document.getElementById('fleetChart')?.getContext('2d');
+            if(fleetCtx) {
+                new Chart(fleetCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: Object.keys(fleet),
+                        datasets: [{
+                            data: Object.values(fleet).map(f => f.total),
+                            backgroundColor: ['#38bdf8', '#a855f7', '#10b981', '#f59e0b'],
+                            borderWidth: 0,
+                            hoverOffset: 15
+                        }]
+                    },
+                    options: { plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { weight: 'bold', size: 10 } } } } }
+                });
+            }
 
-                <div class="space-y-10">
-                    <div>
-                        <h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-6">Complete Mission History</h4>
-                        <div class="overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/30">
-                            <table class="w-full text-left">
-                                <thead class="bg-slate-900/80 text-[10px] uppercase font-black text-slate-500">
-                                    <tr>
-                                        <th class="px-8 py-5">Date / Time</th>
-                                        <th class="px-8 py-5">Assigned Asset</th>
-                                        <th class="px-8 py-5 text-right">Airtime</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-slate-800">
-                                    ${op.logs.map(l => `
-                                        <tr class="hover:bg-slate-800/20 transition">
-                                            <td class="px-8 py-5 text-xs font-semibold text-slate-300">${new Date(l.takeoff_time).toLocaleString()}</td>
-                                            <td class="px-8 py-5">
-                                                <span class="text-xs font-black text-sky-400 uppercase tracking-tight">${l.drone_model}</span>
-                                            </td>
-                                            <td class="px-8 py-5 text-xs text-right font-mono text-white font-bold">${l.duration} MIN</td>
-                                        </tr>
-                                        ${l.has_detection ? `
-                                            <tr class="intel-box">
-                                                <td colspan="3" class="px-8 py-5">
-                                                    <div class="flex items-center text-amber-500 font-black text-[10px] uppercase tracking-widest mb-2">
-                                                        <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
-                                                        Intelligence Report
-                                                    </div>
-                                                    <p class="text-slate-200 text-sm leading-relaxed font-medium">${l.detection_notes || 'Suspicious signatures recorded. Awaiting review.'}</p>
-                                                </td>
-                                            </tr>
-                                        ` : ''}
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            modal.classList.remove('hidden');
-            document.body.style.overflow = 'hidden';
+            const timeCtx = document.getElementById('timelineChart')?.getContext('2d');
+            if(timeCtx) {
+                const last7Days = [...Array(7)].map((_, i) => {
+                    const d = new Date(); d.setDate(d.getDate() - i);
+                    return d.toISOString().split('T')[0];
+                }).reverse();
+
+                const dayData = last7Days.map(day => {
+                    return unitData.filter(l => l.takeoff_time.startsWith(day))
+                                   .reduce((sum, l) => sum + Math.round((new Date(l.landing_time) - new Date(l.takeoff_time)) / (1000 * 60)), 0);
+                });
+
+                new Chart(timeCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: last7Days.map(d => d.split('-').slice(1).join('/')),
+                        datasets: [{ label: 'Minutes', data: dayData, backgroundColor: '#a855f7', borderRadius: 8 }]
+                    },
+                    options: { 
+                        scales: { 
+                            y: { grid: { color: '#1e293b' }, ticks: { color: '#64748b' } },
+                            x: { grid: { display: false }, ticks: { color: '#64748b' } }
+                        },
+                        plugins: { legend: { display: false } }
+                    }
+                });
+            }
         }
 
-        function closeModal() {
-            document.getElementById('profile-modal').classList.add('hidden');
-            document.body.style.overflow = 'auto';
+        function renderIntelFeed() {
+            const feed = document.getElementById('intel-feed');
+            if(!feed) return;
+            feed.innerHTML = '';
+            unitData.filter(l => l.has_detection).slice(0, 10).forEach(l => {
+                const item = document.createElement('div');
+                item.className = "glass-card p-6 rounded-2xl intel-alert flex justify-between items-center shadow-lg";
+                item.innerHTML = `
+                    <div class="flex-1">
+                        <div class="flex items-center space-x-3 mb-1">
+                            <span class="text-[10px] font-black text-amber-500 uppercase tracking-widest">Active Intel</span>
+                            <span class="text-[10px] text-slate-500 mono">${new Date(l.takeoff_time).toLocaleString()}</span>
+                        </div>
+                        <p class="text-white font-medium text-sm mb-1">${l.detection_notes || 'Suspicious heat signature detected.'}</p>
+                        <p class="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Asset: ${l.drone_model} | Operator: ${l.operator_name}</p>
+                    </div>
+                    <div class="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a6 6 0 00-9 5.29C1 12.8 5.61 17.5 10 19s9-6.2 9-11.71A6 6 0 0010 2zm0 14.5c-3 0-5-2-5-4.5s2-4.5 5-4.5 5 2 5 4.5-2 4.5-5 4.5z"/></svg>
+                    </div>
+                `;
+                feed.appendChild(item);
+            });
+        }
+
+        function handleSearch() {
+            const text = document.getElementById('globalSearch').value;
+            renderUI(text);
         }
 
         function switchTab(tab) {
-            document.getElementById('section-operators').classList.toggle('hidden', tab !== 'operators');
+            document.getElementById('section-ops').classList.toggle('hidden', tab !== 'ops');
             document.getElementById('section-fleet').classList.toggle('hidden', tab !== 'fleet');
-            document.getElementById('nav-operators').className = tab === 'operators' ? 'nav-link-active h-16 px-2 text-sm font-bold uppercase tracking-widest text-white' : 'h-16 px-2 text-sm font-bold uppercase tracking-widest text-slate-500';
-            document.getElementById('nav-fleet').className = tab === 'fleet' ? 'nav-link-active h-16 px-2 text-sm font-bold uppercase tracking-widest text-white' : 'h-16 px-2 text-sm font-bold uppercase tracking-widest text-slate-500';
+            document.getElementById('section-intel').classList.toggle('hidden', tab !== 'intel');
+            
+            document.getElementById('nav-ops').className = tab === 'ops' ? 'nav-link-active py-2 text-xs font-black uppercase tracking-widest text-white' : 'py-2 text-xs font-black uppercase tracking-widest text-slate-500';
+            document.getElementById('nav-fleet').className = tab === 'fleet' ? 'nav-link-active py-2 text-xs font-black uppercase tracking-widest text-white' : 'py-2 text-xs font-black uppercase tracking-widest text-slate-500';
+            document.getElementById('nav-intel').className = tab === 'intel' ? 'nav-link-active py-2 text-xs font-black uppercase tracking-widest text-white' : 'py-2 text-xs font-black uppercase tracking-widest text-slate-500';
         }
+
+        function openModal(op) {
+            const content = document.getElementById('modal-content');
+            content.innerHTML = `
+                <div class="mb-10">
+                    <p class="text-sky-500 font-black text-xs uppercase tracking-[0.4em] mb-2">Personnel Dossier</p>
+                    <h2 class="text-6xl font-black text-white uppercase tracking-tighter mb-4 italic">${op.name}</h2>
+                    <div class="flex space-x-3">
+                        ${op.quals.split(',').map(q => `<span class="px-4 py-1.5 rounded-xl border border-slate-700 bg-slate-900 text-[10px] font-black text-slate-400 uppercase">${q.trim()}</span>`).join('')}
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 gap-4">
+                    <h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest">Recent Mission Sequence</h4>
+                    ${op.logs.map(l => `
+                        <div class="p-5 bg-slate-900/50 rounded-2xl border border-slate-800 flex justify-between items-center">
+                            <div>
+                                <p class="text-xs font-bold text-white mb-0.5 uppercase tracking-tighter">${l.drone_model}</p>
+                                <p class="text-[10px] text-slate-500 mono">${new Date(l.takeoff_time).toLocaleString()}</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-lg font-black text-white leading-none">${l.duration} <span class="text-[10px] font-normal text-slate-500 italic">min</span></p>
+                                ${l.has_detection ? '<span class="text-[8px] bg-amber-500/20 text-amber-500 font-black px-1.5 py-0.5 rounded uppercase mt-1 inline-block">INTEL RECORDED</span>' : ''}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            document.getElementById('profile-modal').classList.remove('hidden');
+        }
+
+        function closeModal() { document.getElementById('profile-modal').classList.add('hidden'); }
 
         init();
     </script>
