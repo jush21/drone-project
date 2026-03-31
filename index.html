@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tactical Drone Command</title>
+    <title>Advanced Drone Ops Command</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #020617; color: #f8fafc; }
         .glass-card { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(51, 65, 85, 0.5); }
-        .nav-link-active { color: #38bdf8; border-bottom: 2px solid #38bdf8; }
         .expandable-content { max-height: 0; overflow: hidden; transition: max-height 0.4s ease-out, opacity 0.3s ease; opacity: 0; }
         .expandable-content.open { max-height: 300px; opacity: 1; margin-top: 1rem; }
         .intel-report { background: rgba(245, 158, 11, 0.05); border-left: 3px solid #f59e0b; }
@@ -22,56 +22,65 @@
 <body class="scroll-hide">
 
     <nav class="sticky top-0 z-40 glass-card border-b border-slate-800 px-8 h-16 flex items-center justify-between">
-        <div class="flex items-center space-x-8">
-            <h1 class="text-lg font-black tracking-tighter uppercase italic text-sky-400">Drone Ops</h1>
-            <div class="flex space-x-6">
-                <button onclick="switchTab('ops')" id="nav-ops" class="nav-link-active py-2 text-xs font-bold uppercase tracking-widest transition">Operators</button>
-                <button onclick="switchTab('fleet')" id="nav-fleet" class="py-2 text-xs font-bold uppercase tracking-widest text-slate-500 transition">Fleet Analytics</button>
-            </div>
-        </div>
+        <h1 class="text-lg font-black tracking-tighter uppercase italic text-sky-400">Drone Ops Command</h1>
         <div id="status" class="text-[10px] font-bold text-slate-500 uppercase flex items-center">
-            <span class="w-1.5 h-1.5 bg-slate-600 rounded-full mr-2"></span> System Online
+            <span class="w-1.5 h-1.5 bg-green-500 rounded-full mr-2 shadow-[0_0_5px_#22c55e]"></span> Operational
         </div>
     </nav>
 
-    <main class="max-w-7xl mx-auto p-8">
-        <!-- Dashboard Statistics -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-            <div class="glass-card p-6 rounded-2xl">
+    <main class="max-w-[1600px] mx-auto p-8">
+        <!-- 1. Header Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
+            <div class="glass-card p-6 rounded-2xl border-b-4 border-b-sky-500">
                 <p class="text-[10px] font-bold label-gray uppercase tracking-widest mb-1">Total Unit Airtime</p>
-                <h4 id="stat-time" class="text-3xl data-white">0 min</h4>
+                <h4 id="stat-time" class="text-4xl data-white">0 <span class="text-sm font-normal label-gray lowercase">min</span></h4>
             </div>
-            <div class="glass-card p-6 rounded-2xl">
+            <div class="glass-card p-6 rounded-2xl border-b-4 border-b-amber-500">
                 <p class="text-[10px] font-bold label-gray uppercase tracking-widest mb-1">Detection Events</p>
-                <h4 id="stat-detections" class="text-3xl data-white">0</h4>
+                <h4 id="stat-detections" class="text-4xl data-white">0</h4>
             </div>
-            <div class="glass-card p-6 rounded-2xl">
+            <div class="glass-card p-6 rounded-2xl border-b-4 border-b-green-500">
                 <p class="text-[10px] font-bold label-gray uppercase tracking-widest mb-1">Active Assets</p>
-                <h4 id="stat-assets" class="text-3xl data-white">0</h4>
+                <h4 id="stat-assets" class="text-4xl data-white">0</h4>
+            </div>
+            <div class="glass-card p-6 rounded-2xl border-b-4 border-b-purple-500">
+                <p class="text-[10px] font-bold label-gray uppercase tracking-widest mb-1">Detections Rate</p>
+                <h4 id="stat-rate" class="text-4xl data-white">0%</h4>
             </div>
         </div>
 
-        <!-- Operators Tab -->
-        <section id="section-ops" class="space-y-6">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-bold uppercase italic tracking-wider">Operators</h2>
-                <span id="op-count" class="text-[10px] font-bold text-sky-500 uppercase">0 Active</span>
+        <!-- 2. Charts Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
+            <div class="glass-card p-8 rounded-3xl">
+                <h3 class="text-sm font-black text-white uppercase tracking-widest mb-2 border-l-4 border-sky-500 pl-4">Utilization Distribution</h3>
+                <p class="text-[10px] label-gray mb-6 uppercase font-bold">Click a color to filter the timeline</p>
+                <canvas id="fleetChart" height="300"></canvas>
             </div>
-            <div id="operator-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
-        </section>
+            <div class="lg:col-span-2 glass-card p-8 rounded-3xl">
+                <div class="flex justify-between items-center mb-8">
+                    <h3 id="timeline-title" class="text-sm font-black text-white uppercase tracking-widest border-l-4 border-purple-500 pl-4">Unit Activity Timeline (7D)</h3>
+                    <button onclick="resetTimeline()" id="reset-filter" class="hidden text-[10px] font-black text-sky-500 hover:text-white uppercase tracking-widest transition">Reset Filter ↺</button>
+                </div>
+                <canvas id="timelineChart" height="150"></canvas>
+            </div>
+        </div>
 
-        <!-- Fleet Tab (Analytics Placeholder) -->
-        <section id="section-fleet" class="hidden text-center py-20">
-            <p class="label-gray uppercase text-sm font-bold tracking-widest">Fleet Analytics Interface Loading...</p>
+        <!-- 3. Operators Section -->
+        <section class="space-y-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-black uppercase italic tracking-tighter">Operators</h2>
+                <span id="op-count" class="text-[10px] font-bold text-sky-500 uppercase tracking-widest">0 Active Personnel</span>
+            </div>
+            <div id="operator-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"></div>
         </section>
     </main>
 
     <!-- Detail Modal -->
     <div id="profile-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-slate-950/90 backdrop-blur-md" onclick="closeModal()"></div>
-        <div class="relative glass-card rounded-3xl w-full max-w-4xl max-h-[85vh] overflow-y-auto p-10 shadow-2xl border-t-sky-500 border-t-2">
-            <button onclick="closeModal()" class="absolute top-8 right-8 text-slate-500 hover:text-white transition">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        <div class="relative glass-card rounded-[2.5rem] w-full max-w-5xl max-h-[85vh] overflow-y-auto p-12 shadow-2xl border-t-sky-500 border-t-2">
+            <button onclick="closeModal()" class="absolute top-10 right-10 text-slate-500 hover:text-white transition">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
             </button>
             <div id="modal-content"></div>
         </div>
@@ -82,56 +91,56 @@
         const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNuamtkeGZ1cnBhZ3NzaW1tbXRxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MzU4MzksImV4cCI6MjA5MDUxMTgzOX0.jpqX54brUMKOCC-H85ZRsZ5NkFQ0m-75FkosfY_VGX0";
         const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        let operators = {};
-        let rawData = [];
+        let unitData = [];
+        let timelineChart = null;
+
+        const DRONE_COLORS = {
+            'MAVIC 3E': '#38bdf8', 'DJI AVATA': '#10b981', 'MATRICE 350': '#a855f7', 'AUTEL EVO': '#f59e0b', 'UNKNOWN': '#64748b'
+        };
 
         async function init() {
             const { data, error } = await _supabase.from('drons').select('*').order('takeoff_time', { ascending: false });
             if (error) return;
-            rawData = data;
-            document.getElementById('status').innerHTML = `<span class="w-1.5 h-1.5 bg-green-500 rounded-full mr-2 shadow-[0_0_5px_#22c55e]"></span> Operational`;
-            processData();
+            unitData = data;
+            processAndRender();
         }
 
-        function processData() {
-            operators = {};
+        function processAndRender() {
+            const ops = {}; const fleet = {};
             let totalMins = 0; let totalDet = 0;
-            const assetModels = new Set();
+            
+            unitData.forEach(log => {
+                const dur = Math.round((new Date(log.landing_time) - new Date(log.takeoff_time)) / (1000 * 60));
+                const model = (log.drone_model || "UNKNOWN").trim().toUpperCase();
+                totalMins += dur; if (log.has_detection) totalDet++;
 
-            rawData.forEach(log => {
-                const duration = Math.round((new Date(log.landing_time) - new Date(log.takeoff_time)) / (1000 * 60));
-                totalMins += duration;
-                if (log.has_detection) totalDet++;
-                assetModels.add(log.drone_model?.trim().toUpperCase());
+                if (!ops[log.operator_name]) ops[log.operator_name] = { name: log.operator_name, quals: log.qualifications || "Standard", logs: [], total: 0 };
+                ops[log.operator_name].total += dur;
+                ops[log.operator_name].logs.push({ ...log, duration: dur });
 
-                if (!operators[log.operator_name]) {
-                    operators[log.operator_name] = { 
-                        name: log.operator_name, 
-                        quals: log.qualifications || "Standard", 
-                        logs: [], 
-                        total: 0 
-                    };
-                }
-                operators[log.operator_name].total += duration;
-                operators[log.operator_name].logs.push({ ...log, duration });
+                if (!fleet[model]) fleet[model] = { total: 0 };
+                fleet[model].total += dur;
             });
 
-            document.getElementById('stat-time').innerText = `${totalMins} min`;
+            document.getElementById('stat-time').innerHTML = `${totalMins} <span class="text-sm font-normal label-gray lowercase">min</span>`;
             document.getElementById('stat-detections').innerText = totalDet;
-            document.getElementById('stat-assets').innerText = assetModels.size;
+            document.getElementById('stat-assets').innerText = Object.keys(fleet).length;
+            document.getElementById('stat-rate').innerText = Math.round((totalDet / unitData.length) * 100) + '%';
 
-            renderOperators();
+            renderOperators(ops);
+            renderDoughnutChart(fleet);
+            renderTimelineChart();
         }
 
-        function renderOperators() {
+        function renderOperators(ops) {
             const grid = document.getElementById('operator-grid');
             grid.innerHTML = '';
-            Object.values(operators).forEach(op => {
+            Object.values(ops).forEach(op => {
                 const card = document.createElement('div');
                 card.onclick = () => showModal(op);
                 card.className = "glass-card rounded-2xl p-6 border-l-4 border-sky-500 hover:scale-[1.02] cursor-pointer transition shadow-xl";
                 card.innerHTML = `
-                    <h3 class="text-xl data-white mb-6 uppercase tracking-tight">${op.name}</h3>
+                    <h3 class="text-xl data-white mb-6 uppercase tracking-tight italic">${op.name}</h3>
                     <div class="mb-6">
                         <p class="text-[9px] font-bold label-gray uppercase tracking-[0.2em] mb-2">Qualifications:</p>
                         <div class="flex flex-wrap gap-1.5">
@@ -139,86 +148,116 @@
                         </div>
                     </div>
                     <div class="border-t border-slate-800 pt-4">
-                        <p class="text-[10px] label-gray uppercase tracking-widest">Total Airtime: <span class="data-white">${op.total} min</span></p>
+                        <p class="text-[10px] label-gray uppercase tracking-widest font-bold italic">Total Airtime: <span class="data-white">${op.total} min</span></p>
                     </div>
                 `;
                 grid.appendChild(card);
             });
-            document.getElementById('op-count').innerText = `${Object.keys(operators).length} Active`;
+            document.getElementById('op-count').innerText = `${Object.keys(ops).length} Active Personnel`;
+        }
+
+        function renderDoughnutChart(fleet) {
+            const ctx = document.getElementById('fleetChart').getContext('2d');
+            const labels = Object.keys(fleet);
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: labels.map(l => fleet[l].total),
+                        backgroundColor: labels.map(l => DRONE_COLORS[l] || '#ec4899'),
+                        borderWidth: 0, hoverOffset: 20
+                    }]
+                },
+                options: {
+                    plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { weight: 'bold', size: 10 } } } },
+                    onClick: (evt, elements) => { if (elements.length > 0) filterTimeline(labels[elements[0].index]); }
+                }
+            });
+        }
+
+        function renderTimelineChart(modelFilter = null) {
+            const ctx = document.getElementById('timelineChart').getContext('2d');
+            if (timelineChart) timelineChart.destroy();
+
+            const last7Days = [...Array(7)].map((_, i) => {
+                const d = new Date(); d.setDate(d.getDate() - i);
+                return d.toISOString().split('T')[0];
+            }).reverse();
+
+            const dayData = last7Days.map(day => {
+                return unitData.filter(l => {
+                    const matchesDay = l.takeoff_time.startsWith(day);
+                    const matchesModel = modelFilter ? (l.drone_model || "").trim().toUpperCase() === modelFilter : true;
+                    return matchesDay && matchesModel;
+                }).reduce((sum, l) => sum + Math.round((new Date(l.landing_time) - new Date(l.takeoff_time)) / (1000 * 60)), 0);
+            });
+
+            timelineChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: last7Days.map(d => d.split('-').slice(1).join('/')),
+                    datasets: [{ label: 'Minutes', data: dayData, backgroundColor: modelFilter ? DRONE_COLORS[modelFilter] : '#a855f7', borderRadius: 8 }]
+                },
+                options: { 
+                    scales: { 
+                        y: { grid: { color: '#1e293b' }, ticks: { color: '#64748b' }, beginAtZero: true },
+                        x: { grid: { display: false }, ticks: { color: '#64748b' } }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        function filterTimeline(model) {
+            document.getElementById('timeline-title').innerText = `Timeline: ${model}`;
+            document.getElementById('reset-filter').classList.remove('hidden');
+            renderTimelineChart(model);
+        }
+
+        function resetTimeline() {
+            document.getElementById('timeline-title').innerText = `Unit Activity Timeline (7D)`;
+            document.getElementById('reset-filter').classList.add('hidden');
+            renderTimelineChart(null);
         }
 
         function showModal(op) {
-            const modal = document.getElementById('profile-modal');
             const content = document.getElementById('modal-content');
-            
             content.innerHTML = `
                 <div class="mb-10">
-                    <h2 class="text-5xl font-black text-white uppercase italic tracking-tighter mb-2">${op.name}</h2>
+                    <h2 class="text-6xl font-black text-white uppercase italic tracking-tighter mb-2">${op.name}</h2>
                     <div class="flex items-center space-x-2 mb-8">
-                        <p class="text-xs font-bold label-gray uppercase tracking-widest">Total Airtime:</p>
-                        <p class="text-xl data-white uppercase">${op.total} min</p>
+                        <p class="text-xs font-bold label-gray uppercase tracking-widest font-black">TOTAL AIRTIME:</p>
+                        <p class="text-2xl data-white uppercase">${op.total} min</p>
                     </div>
-                    
-                    <div class="mb-10">
-                        <p class="text-[9px] font-bold label-gray uppercase tracking-[0.2em] mb-3">Qualifications:</p>
-                        <div class="flex flex-wrap gap-2">
-                            ${op.quals.split(',').map(q => `<span class="px-3 py-1 rounded-lg border border-sky-500/20 bg-sky-500/10 text-sky-400 text-[10px] font-black uppercase">${q.trim()}</span>`).join('')}
-                        </div>
+                    <p class="text-[9px] font-bold label-gray uppercase tracking-[0.2em] mb-3">QUALIFICATIONS:</p>
+                    <div class="flex flex-wrap gap-2">
+                        ${op.quals.split(',').map(q => `<span class="px-4 py-1.5 rounded-xl border border-sky-500/20 bg-sky-500/10 text-sky-400 text-[10px] font-black uppercase">${q.trim()}</span>`).join('')}
                     </div>
                 </div>
-
                 <div class="space-y-6">
                     <h4 class="text-xs font-bold label-gray uppercase tracking-widest border-b border-slate-800 pb-2">Mission Log</h4>
                     <div class="space-y-3">
                         ${op.logs.map((l, i) => `
                             <div class="p-5 rounded-2xl border border-slate-800 bg-slate-900/40">
                                 <div class="flex justify-between items-center">
-                                    <div>
-                                        <p class="text-sm data-white uppercase">${l.drone_model}</p>
-                                        <p class="text-[10px] label-gray font-mono">${new Date(l.takeoff_time).toLocaleDateString()} ${new Date(l.takeoff_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
-                                    </div>
+                                    <div><p class="text-sm data-white uppercase">${l.drone_model}</p><p class="text-[10px] label-gray font-mono">${new Date(l.takeoff_time).toLocaleString()}</p></div>
                                     <div class="flex items-center space-x-6">
-                                        <p class="text-xs data-white">${l.duration} MIN</p>
-                                        ${l.has_detection ? `
-                                            <button onclick="event.stopPropagation(); toggleIntel(${i})" class="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 hover:bg-amber-500 hover:text-slate-900 transition">
-                                                <span class="font-bold">!</span>
-                                            </button>
-                                        ` : '<div class="w-8"></div>'}
+                                        <p class="text-xs data-white font-bold">${l.duration} MIN</p>
+                                        ${l.has_detection ? `<button onclick="event.stopPropagation(); toggleIntel(${i})" class="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 hover:bg-amber-500 hover:text-slate-900 transition"><span class="font-bold">!</span></button>` : '<div class="w-8"></div>'}
                                     </div>
                                 </div>
-                                <div id="intel-${i}" class="expandable-content">
-                                    <div class="p-4 rounded-xl intel-report">
-                                        <p class="text-[9px] font-black text-amber-500 uppercase mb-1 tracking-widest">Intelligence Notes</p>
-                                        <p class="text-sm text-slate-300 leading-relaxed">${l.detection_notes || 'Suspicious signatures recorded.'}</p>
-                                        <button onclick="toggleIntel(${i})" class="text-[9px] font-bold label-gray uppercase hover:text-white mt-3 block underline tracking-widest">Show Less</button>
-                                    </div>
-                                </div>
+                                <div id="intel-${i}" class="expandable-content"><div class="p-4 rounded-xl intel-report"><p class="text-[9px] font-black text-amber-500 uppercase mb-1 tracking-widest">Intelligence Notes</p><p class="text-sm text-slate-300 leading-relaxed">${l.detection_notes}</p><button onclick="toggleIntel(${i})" class="text-[9px] font-bold label-gray uppercase hover:text-white mt-3 block underline tracking-widest">Show Less</button></div></div>
                             </div>
                         `).join('')}
                     </div>
-                </div>
-            `;
-            modal.classList.remove('hidden');
+                </div>`;
+            document.getElementById('profile-modal').classList.remove('hidden');
             document.body.style.overflow = 'hidden';
         }
 
-        window.toggleIntel = (index) => {
-            const el = document.getElementById(`intel-${index}`);
-            el.classList.toggle('open');
-        };
-
-        window.closeModal = () => {
-            document.getElementById('profile-modal').classList.add('hidden');
-            document.body.style.overflow = 'auto';
-        };
-
-        window.switchTab = (tab) => {
-            document.getElementById('section-ops').classList.toggle('hidden', tab !== 'ops');
-            document.getElementById('section-fleet').classList.toggle('hidden', tab !== 'fleet');
-            document.getElementById('nav-ops').className = tab === 'ops' ? 'nav-link-active py-2 text-xs font-bold uppercase tracking-widest text-white' : 'py-2 text-xs font-bold uppercase tracking-widest text-slate-500';
-            document.getElementById('nav-fleet').className = tab === 'fleet' ? 'nav-link-active py-2 text-xs font-bold uppercase tracking-widest text-white' : 'py-2 text-xs font-bold uppercase tracking-widest text-slate-500';
-        };
-
+        window.toggleIntel = (i) => document.getElementById(`intel-${i}`).classList.toggle('open');
+        window.closeModal = () => { document.getElementById('profile-modal').classList.add('hidden'); document.body.style.overflow = 'auto'; };
         init();
     </script>
 </body>
